@@ -593,6 +593,22 @@ class _Kernel(serialize.ReduceMixin):
         """
         return get_current_device()
 
+    @property 
+    def shared_mem_per_block(self):
+        return self._func.get().attrs.shared
+
+    @property 
+    def local_mem_per_thread(self):
+        return self._func.get().attrs.local 
+
+    @property 
+    def const_mem_usage(self):
+        return self._func.get().attrs.const 
+
+    @property 
+    def max_block_size(self):
+        return self._func.get().attrs.maxthreads
+
     def inspect_llvm(self):
         '''
         Returns the LLVM IR for this kernel.
@@ -955,6 +971,86 @@ class Dispatcher(serialize.ReduceMixin):
             return self.definition._func
         else:
             return {sig: defn._func for sig, defn in self.definitions.items()}
+
+    def get_shared_mem_per_block(self, signature=None):
+        '''
+        Returns the size in bytes of statically-allocated shared memory 
+        required by this function for the device in the current context.
+
+        :param sig: The signature of the compiled kernel to get shared memory 
+                    usage for. This may be omitted for a specialized kernel.
+        :return: The size in bytes of shared memory per block used by the 
+                 compiled variant of the kernel for the given signature and 
+                 current device.
+        '''
+        cc = get_current_device().compute_capability
+        if signature is not None:
+            return self.definitions[(cc, signature.args)].shared_mem_per_block
+        if self.specialized:
+            return self.definition.shared_mem_per_block
+        else:
+            return {sig: defn.shared_mem_per_block
+                    for sig, defn in self.definitions.items()}
+
+    def get_local_mem_per_thread(self, signature=None):
+        '''
+        Returns the size in bytes of local memory used by each thread of this
+        function for the device in the current context.
+
+        :param sig: The signature of the compiled kernel to get shared memory 
+                    usage for. This may be omitted for a specialized kernel.
+        :return: The size in bytes of local memory per thread used by the 
+                 compiled variant of the kernel for the given signature and 
+                 current device.
+        '''          
+        cc = get_current_device().compute_capability
+        if signature is not None:
+            return self.definitions[(cc, signature.args)].local_mem_per_thread
+        if self.specialized:
+            return self.definition.local_mem_per_thread
+        else:
+            return {sig: defn.local_mem_per_thread
+                    for sig, defn in self.definitions.items()}
+
+    def get_const_mem_usage(self, signature=None):
+        '''
+        Returns the size in bytes of user-allocated constant memory required 
+        by this function for the device in the current context.
+
+        :param sig: The signature of the compiled kernel to get shared memory 
+                    usage for. This may be omitted for a specialized kernel.
+        :return: The size in bytes user-allocated constant memory required 
+                 by the compiled variant of the kernel for the given signature 
+                 and current device.
+        '''
+        cc = get_current_device().compute_capability
+        if signature is not None:
+            return self.definitions[(cc, signature.args)].const_mem_usage
+        if self.specialized:
+            return self.definition.const_mem_usage
+        else:
+            return {sig: defn.const_mem_usage
+                    for sig, defn in self.definitions.items()}
+
+    def get_max_block_size(self, signature=None):
+        '''
+        Returns the maximum number of threads per block, beyond which a launch
+        of the function would fail for the device in the current context.
+
+        :param sig: The signature of the compiled kernel to get shared memory 
+                    usage for. This may be omitted for a specialized kernel.
+        :return: The maximum number of threads per block used by the 
+                 compiled variant of the kernel for the given signature and 
+                 current device.
+        '''
+        cc = get_current_device().compute_capability
+        if signature is not None:
+            return self.definitions[(cc, signature.args)].max_block_size
+        if self.specialized:
+            return self.definition.max_block_size
+        else:
+            return {sig: defn.max_block_size
+                    for sig, defn in self.definitions.items()}
 
     def compile(self, sig):
         '''
